@@ -1,0 +1,277 @@
+﻿@page "/"
+@inject HttpClient Http
+@using ValidateSearch
+
+
+
+
+@if (found)
+{
+    <h2>Showing Results for: @searchFor </h2> 
+}
+else if (topNews)
+{
+    <h2>Trending News</h2>
+}
+else
+{
+<h2>Latest News</h2>
+}
+
+@if (news == null)
+{
+<p><em>Loading. Please Wait.</em></p> }
+            else
+            {
+<div class="mb-5 d-flex justify-content-between">
+    <div class="justify-content-center">
+        <button class="btn btn-danger" @onclick="Main">All News</button>
+        <button class="btn btn-danger" @onclick="Top">Trending</button>
+    </div>
+    <div class="justify-content-center">
+        <EditForm Model="@currentSearch" OnValidSubmit="@SubmitValidate">
+            <DataAnnotationsValidator />
+            <input type="search"id="searchFor" class="form-control rounded" @bind-value="currentSearch.SearchInput" placeholder="Enter a search paramter" />
+            <button class="btn btn-danger" @onclick="Search">Search</button>
+            <ValidationMessage For="@(()=> currentSearch.SearchInput)" />
+        </EditForm>
+    </div>
+</div>
+                <div class="container">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            @foreach (var topic in news.data)
+                            {   
+                                <div class="card mb-1">
+                                    <div class="card-body">
+                                        <h5 class="card-title">@topic.title</h5>
+                                        <p class="card-subtitle">@topic.published_at</p>
+                                        <a class="card-link" href="https://@topic.source" target="_blank">Source: @topic.source</a>
+                                        <p class="card-text">@topic.description</p>
+                                        <button class="btn btn-danger" @onclick="(() => Similar(topic.uuid))">Find Related News</button>
+                                    </div>                              
+                                 </div>
+                               
+                             }
+                        </div>
+                        <div class="mb-5 d-block mx-auto text-center">
+                            <button class="btn btn-outline-dark" @onclick="Previous">Previous</button>
+                            <button class="btn btn-outline-dark" @onclick="Next">Next</button>
+                        </div>
+                    </div>
+                </div>}
+
+@code { private Root news;
+    private const string mainUrl = "https://api.thenewsapi.com/v1/news/";
+    private const string apiKey = "?api_token=hRZxjKBIxxHBgzOlPsmtDpQIGHEkwGlHfUCN48RT";
+    private string errorMessage;
+    private int pageNews = 1;
+    private bool topNews;
+    private bool found;
+
+
+    private async Task GetNewsAsync()
+    {
+        try
+        {
+            news = await Http.GetFromJsonAsync<Root>(mainUrl + "all" + apiKey + "&language=en&page=" + pageNews);
+            found = false;
+            topNews = false;
+            errorMessage = String.Empty;
+        }
+        catch (Exception e)
+        {
+            errorMessage = e.Message;
+        }
+    }
+
+
+    private async Task GetSimilarNewsAsync(string uuid)
+    {
+        try
+        {
+            news = await Http.GetFromJsonAsync<Root>(mainUrl + "similar/" + uuid + apiKey + "&language=en&page=" + pageNews);
+            found = false;
+            topNews = false;
+            errorMessage = String.Empty;
+        }
+        catch (Exception e)
+        {
+            errorMessage = e.Message;
+        }
+    }
+
+    private async Task GetTopNewsAsync()
+    {
+        try
+        {
+            news = await Http.GetFromJsonAsync<Root>(mainUrl + "top" + apiKey + "&language=en&page=" + pageNews);
+            found = false;
+            topNews = true;
+            errorMessage = String.Empty;
+        }
+        catch (Exception e)
+        {
+            topNews = false;
+            errorMessage = e.Message;
+        }
+    }
+
+
+    private async Task GetSearchNewsAsync()
+    {
+        try
+        {
+            news = await Http.GetFromJsonAsync<Root>(mainUrl + "all" + apiKey + "&search=" + currentSearch.SearchInput + "&language=en&page=" + pageNews);
+            found = true;
+            topNews = false;
+            errorMessage = String.Empty;
+        }
+        catch (Exception e)
+        {
+            found = false;
+            errorMessage = e.Message;
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetNewsAsync();
+    }
+
+    public async void Main()
+    {
+        await GetNewsAsync();
+        StateHasChanged();
+    }
+
+    public async void Top()
+    {
+        await GetTopNewsAsync();
+        StateHasChanged();
+    }
+
+ 
+
+    public async void Similar(string uuid)
+    {
+        await GetSimilarNewsAsync(uuid);
+        StateHasChanged();
+    }
+
+
+    public async void Search()
+    {
+        await GetSearchNewsAsync();
+        StateHasChanged();
+    }
+
+
+    public void Previous()
+    {
+        if (found)
+        {
+            if (pageNews >= 2)
+            {
+                pageNews--;
+            }
+            else
+            {
+                pageNews = 1;
+            }
+            currentSearch = searchFor;
+            Search();
+            StateHasChanged();
+        }
+        else if (topNews)
+        {
+            if (pageNews >= 2)
+            {
+                pageNews--;
+            }
+            else
+            {
+                pageNews = 1;
+            }
+            Top();
+            StateHasChanged();
+        }
+        else
+        {
+            if (pageNews >= 2)
+            {
+                pageNews--;
+            }
+            else
+            {
+                pageNews = 1;
+            }
+            Main();
+            StateHasChanged();
+        }
+    }
+
+    public void Next()
+    {
+        if (found)
+        {
+            pageNews++;
+            currentSearch = searchFor;
+            Search();
+            StateHasChanged();
+        }
+        else if (topNews)
+        {
+            pageNews++;
+            Top();
+            StateHasChanged();
+        }
+        else
+        {
+            pageNews++;
+            Main();
+            StateHasChanged();
+        }
+    }
+
+
+    private ValidSearch currentSearch = new ValidSearch();
+    private ValidSearch searchFor = null;
+
+    private void SubmitValidate()
+    {
+        searchFor = currentSearch;
+        currentSearch = new ValidSearch();
+    }
+
+
+    public class Meta
+    {
+        public int found { get; set; }
+        public int returned { get; set; }
+        public int limit { get; set; }
+        public int page { get; set; }
+    }
+
+    public class Datum
+    {
+        public string uuid { get; set; }
+        public string title { get; set; }
+        public string description { get; set; }
+        public string keywords { get; set; }
+        public string snippet { get; set; }
+        public string url { get; set; }
+        public string image_url { get; set; }
+        public string language { get; set; }
+        public DateTime published_at { get; set; }
+        public string source { get; set; }
+        public List<string> categories { get; set; }
+        public object relevance_score { get; set; }
+    }
+
+    public class Root
+    {
+        public Meta meta { get; set; }
+        public List<Datum> data { get; set; }
+    } }
